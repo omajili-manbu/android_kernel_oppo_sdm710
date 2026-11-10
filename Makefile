@@ -123,6 +123,36 @@ ifeq ("$(origin O)", "command line")
   KBUILD_OUTPUT := $(O)
 endif
 
+# ===========================================================================
+# PBEM00 build integration (this branch runs on the outer invocation only;
+# the invocation inside the output directory re-enters with KBUILD_SRC set).
+# Fixed output directory: out/ beside the source tree. An explicit O= or a
+# KBUILD_OUTPUT env var still wins over this default.
+KBUILD_OUTPUT ?= $(CURDIR)/out
+
+# Bare make parallelizes across all host CPUs. MAKEFLAGS is parsed once at
+# startup, so -j cannot be enabled for the current process from inside this
+# file; the O= hop below appends $(PBEM00_JARG) when forwarding into the
+# output directory, where the real (parallel) build then happens.
+PBEM00_NPROC := $(shell nproc 2>/dev/null || echo 1)
+ifeq ($(findstring j,$(MAKEFLAGS)),)
+PBEM00_JARG := -j$(PBEM00_NPROC)
+endif
+
+# The Q-era Android clang (the compiler of record for this tree: arm64 code
+# rejects GCC < 5.1 unless clang) and the CAF gcc-4.9 binutils beside the
+# source tree go on PATH HERE, in the outer invocation, so the output-directory
+# invocation inherits them through its process environment. GNU make's
+# $(shell) probes (cc-option, compiler feature checks) and direct-exec'd
+# commands consult the startup environment, which an export made from inside
+# that invocation does not update (make <4.4).
+PBEM00_CLANG_BIN := $(realpath $(CURDIR)/../prebuilts-master/clang/host/linux-x86/clang-r365631c/bin)
+PBEM00_TC_BIN := $(realpath $(CURDIR)/../prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin)
+ifneq ($(PBEM00_CLANG_BIN)$(PBEM00_TC_BIN),)
+export PATH := $(PBEM00_CLANG_BIN):$(PBEM00_TC_BIN):$(PATH)
+endif
+# ===========================================================================
+
 # That's our default target when none is given on the command line
 PHONY := _all
 _all:
@@ -149,7 +179,7 @@ $(filter-out _all sub-make $(CURDIR)/Makefile, $(MAKECMDGOALS)) _all: sub-make
 	@:
 
 sub-make:
-	$(Q)$(MAKE) -C $(KBUILD_OUTPUT) KBUILD_SRC=$(CURDIR) \
+	$(Q)$(MAKE) $(PBEM00_JARG) -C $(KBUILD_OUTPUT) KBUILD_SRC=$(CURDIR) \
 	-f $(CURDIR)/Makefile $(filter-out _all sub-make,$(MAKECMDGOALS))
 
 # Leave processing to above invocation of make
@@ -254,6 +284,20 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # "make" in the configured kernel build directory always uses that.
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
+# PBEM00: pin the CAF gcc-4.9 binutils (PATH is exported by the outer
+# invocation above, so $(shell) probes can see the toolchain) and the clang
+# triple. The compiler itself is forced to clang further below; this tree's
+# clang sanity check rejects the android-flavored --target, hence the GNU
+# triple for CLANG_TRIPLE.
+PBEM00_TC_BIN := $(realpath $(srctree)/../prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin)
+ifneq ($(PBEM00_TC_BIN),)
+CROSS_COMPILE	?= aarch64-linux-android-
+CLANG_TRIPLE	?= aarch64-linux-gnu-
+else
+$(warning PBEM00 toolchain not found at ../prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 ; set CROSS_COMPILE yourself)
+endif
+
+ARCH		?= arm64
 ARCH		?= $(SUBARCH)
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
@@ -370,6 +414,13 @@ STRIP		= $(CROSS_COMPILE)strip
 OBJCOPY		= $(CROSS_COMPILE)objcopy
 OBJDUMP		= $(CROSS_COMPILE)objdump
 endif
+
+# PBEM00: this tree's arm64 code only builds with clang (compiler-gcc.h
+# rejects GCC < 5.1 when !__clang__); the CROSS_COMPILE gcc-4.9 prebuilts
+# remain the binutils provider (the tree's clang flow runs with
+# -no-integrated-as, i.e. GNU as). A command-line CC= still overrides.
+CC		:= clang
+
 AWK		= awk
 GENKSYMS	= scripts/genksyms/genksyms
 INSTALLKERNEL  := installkernel
@@ -550,6 +601,27 @@ KBUILD_CFLAGS	+= $(CLANG_FLAGS)
 KBUILD_AFLAGS	+= $(CLANG_FLAGS)
 endif
 
+
+# ===========================================================================
+# PBEM00: merged defconfig -- sdm670-perf base + OPPO oplus fragments.
+# OPPO merges these on the device-build side; standalone builds do it here.
+#   make pbem00_defconfig   -> (re)generate the merged configuration
+# On a fresh tree the file rule below hooks into kbuild's
+# auto.conf -> $(KCONFIG_CONFIG) dependency chain, so bare make (or any
+# kernel goal) merges the configuration strictly before anything compiles.
+PBEM00_FRAGS := $(srctree)/arch/arm64/configs/vendor/oplus/sdm710-common.config \
+		$(srctree)/arch/arm64/configs/vendor/oplus/PBEM00.config
+
+PHONY += pbem00_defconfig
+pbem00_defconfig: scripts_basic outputmakefile FORCE
+	$(Q)$(MAKE) $(build)=scripts/kconfig sdm670-perf_defconfig
+	$(Q)cat $(PBEM00_FRAGS) >> $(KCONFIG_CONFIG)
+	$(Q)$(MAKE) $(build)=scripts/kconfig olddefconfig
+
+ifeq ($(wildcard $(KCONFIG_CONFIG)),)
+$(KCONFIG_CONFIG): pbem00_defconfig
+endif
+# ===========================================================================
 
 ifeq ($(mixed-targets),1)
 # ===========================================================================

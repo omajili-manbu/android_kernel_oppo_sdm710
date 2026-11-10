@@ -149,11 +149,10 @@ core-$(CONFIG_CRYPTO) += arch/arm64/crypto/
 libs-y		:= arch/arm64/lib/ $(libs-y)
 core-$(CONFIG_EFI_STUB) += $(objtree)/drivers/firmware/efi/libstub/lib.a
 
-ifeq ($(CONFIG_BUILD_ARM64_KERNEL_COMPRESSION_GZIP),y)
+# PBEM00: the default target is always the gz-compressed image regardless of
+# config; the Image.gz -> Image prereq chain also leaves the plain Image in
+# arch/arm64/boot/ (single goal chain, no parallel objcopy race).
 KBUILD_IMAGE   := Image.gz
-else
-KBUILD_IMAGE   := Image
-endif
 
 # Default target when executing plain make
 ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE),y)

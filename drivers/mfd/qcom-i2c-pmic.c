@@ -561,6 +561,10 @@ static int i2c_pmic_probe(struct i2c_client *client,
 	rc = i2c_pmic_determine_initial_status(chip);
 	if (rc < 0) {
 		pr_err("Couldn't determine initial status rc=%d\n", rc);
+		/* -ENOTCONN: 地址相位全程 NACK, 视为该批次未上此器件 */
+		if (rc == -ENOTCONN && chip->dev->of_node)
+			pr_err("%s: device is not present!\n",
+				chip->dev->of_node->name);
 		goto cleanup;
 	}
 

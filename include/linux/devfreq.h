@@ -215,6 +215,8 @@ extern void devm_devfreq_remove_device(struct device *dev,
 /* Supposed to be called by PM callbacks */
 extern int devfreq_suspend_device(struct devfreq *devfreq);
 extern int devfreq_resume_device(struct devfreq *devfreq);
+extern int devfreq_get_limit(struct devfreq *df, unsigned long *min, unsigned long *max);
+extern int devfreq_set_limit(struct devfreq *df, unsigned long min, unsigned long max);
 
 /* Helper functions for devfreq user device driver with OPP. */
 extern struct dev_pm_opp *devfreq_recommended_opp(struct device *dev,

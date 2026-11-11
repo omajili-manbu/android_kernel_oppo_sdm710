@@ -21,6 +21,12 @@
 #include "kgsl_pwrctrl.h"
 #include "hypnus_op.h"
 
+/*
+ * CAF sched boost getter lives in kernel/sched/boost.c and is only
+ * declared in the scheduler-internal sched.h; re-declare for this driver.
+ */
+int sched_boost(void);
+
 static int msm_get_running_avg(int *avg, int *big_avg, int *iowait_avg)
 {
 /* TODO qinyonghui*/

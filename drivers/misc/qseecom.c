@@ -3503,7 +3503,10 @@ static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
 		cmd_len = sizeof(struct qseecom_client_send_data_64bit_ireq);
 	}
 
-	if (qseecom.whitelist_support == false || data->use_legacy_cmd == true)
+	/* facereg: TZ whitelist send_data 回 -EINVAL; 共享决策点强制 legacy,
+	 * 同时覆盖 ioctl qseecom_send_cmd 与内核 API qseecom_send_command */
+	if (qseecom.whitelist_support == false || data->use_legacy_cmd == true ||
+	    !strcmp(data->client.app_name, "facereg"))
 		*(uint32_t *)cmd_buf = QSEOS_CLIENT_SEND_DATA_COMMAND;
 	else
 		*(uint32_t *)cmd_buf = QSEOS_CLIENT_SEND_DATA_COMMAND_WHITELIST;
@@ -5053,10 +5056,8 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 		}
 		perf_enabled = true;
 	}
-	/* facereg: 本机 TZ 对其 whitelist send_data 回 -EINVAL, 强制 legacy 命令 */
 	if (!strcmp(data->client.app_name, "securemm") ||
-	    !strcmp(data->client.app_name, "bgapp") ||
-	    !strcmp(data->client.app_name, "facereg")) {
+	    !strcmp(data->client.app_name, "bgapp")) {
 		data->use_legacy_cmd = true;
 	}
 

@@ -1,0 +1,5 @@
+config OPPO_KEVENT_UPLOAD
+	bool "OPPO kevent upload driver"
+	help
+	  Netlink-based kernel event upload driver (NETLINK_OPPO_KEVENT, unit 34),
+	  consumed by /system/bin/oppo_kevent.

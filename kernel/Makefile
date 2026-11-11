@@ -113,6 +113,7 @@ obj-$(CONFIG_JUMP_LABEL) += jump_label.o
 obj-$(CONFIG_CONTEXT_TRACKING) += context_tracking.o
 obj-$(CONFIG_TORTURE_TEST) += torture.o
 obj-$(CONFIG_MEMBARRIER) += membarrier.o
+obj-$(CONFIG_OPPO_KEVENT_UPLOAD) += oppo_kevent_upload.o
 
 obj-$(CONFIG_HAS_IOMEM) += memremap.o
 

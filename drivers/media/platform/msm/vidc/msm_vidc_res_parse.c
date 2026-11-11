@@ -701,6 +701,9 @@ static int msm_decide_dt_node(
 		dprintk(VIDC_DBG,
 			"Failed to parser dt: sku_index %d res->sku_version - %d\n",
 			sku_index, res->sku_version);
+		dprintk(VIDC_ERR,
+			"device is not %s! (node sku-index %d != chip sku_version %d)\n",
+			pdev->dev.of_node->name, sku_index, res->sku_version);
 		return -EINVAL;
 	}
 

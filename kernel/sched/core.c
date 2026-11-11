@@ -9134,6 +9134,11 @@ int sched_set_updown_migrate(unsigned int up_pct, unsigned int down_pct)
 	if (up_pct > 100 || down_pct > 100)
 		return -EINVAL;
 
+	/* reject 0%: the sysctl capacity conv rejects it as well, and
+	 * it would zero the margin via an ARM64-silent udiv-by-zero */
+	if (!up_pct || !down_pct)
+		return -EINVAL;
+
 	if (down_pct > up_pct)
 		return -EINVAL;
 

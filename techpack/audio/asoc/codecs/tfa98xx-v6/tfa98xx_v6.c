@@ -3497,7 +3497,7 @@ static int tfa98xx_i2c_probe(struct i2c_client* i2c, const struct i2c_device_id*
     mutex_init(&tfa98xx->dsp_lock);
     init_waitqueue_head(&tfa98xx->wq);
 
-    tfa98xx->tfa98xx_vdd = regulator_get(&i2c->dev, "tfa9874_vdd");
+    tfa98xx->tfa98xx_vdd = regulator_get(&i2c->dev, "tfa9890_vdd");
     if (IS_ERR(tfa98xx->tfa98xx_vdd)) {
         printk("regulator tfa98xx_vdd get failed\n ");
         devm_kfree(&i2c->dev, tfa98xx);

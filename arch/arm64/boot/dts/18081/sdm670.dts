@@ -20,21 +20,3 @@
 	qcom,board-id = <0 0>;
 	oppo,prjversion = <2 18081 18085>;
 };
-
-/* efuse SKU_VERSION_1 为单核 SKU: vidc0(sku-index=0) probe 必失败, 编解码由 vidc1 全覆盖 */
-&msm_vidc0 {
-	status = "disabled";
-};
-
-/* PBEM00 未贴装 SMB1355 并充芯片: 基座预置 disabled 桩(同 nx30p6093 先例), 原厂 dtbo
-   注入同名节点不带 status 属性, 合并后保持禁用, 消除 i2c0 0x08/0x0C 地址 NACK */
-&soc {
-	i2c@a88000 {
-		qcom,smb1355@8 {
-			status = "disabled";
-		};
-		qcom,smb1355@c {
-			status = "disabled";
-		};
-	};
-};

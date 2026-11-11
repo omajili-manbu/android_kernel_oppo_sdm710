@@ -2633,6 +2633,18 @@ static void tfa98xx_container_loaded(const struct firmware* cont, void* context)
 static int tfa98xx_load_container(struct tfa98xx* tfa98xx) {
     tfa98xx->dsp_fw_state = TFA98XX_DSP_FW_PENDING;
 
+    /* OPPO ships per-project containers named tfa98xx_<project>.cnt (e.g.
+       tfa98xx_18081.cnt for 18081) under /vendor/firmware; derive the name
+       from the project id like the vendor module does, falling back to the
+       fw_name module parameter when the project id is unavailable. */
+    if (get_project() > 0) {
+        static char cnt_name[32]; /* must outlive the async fw request */
+
+        snprintf(cnt_name, sizeof(cnt_name), "tfa98xx_%u.cnt", get_project());
+        return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG, cnt_name, tfa98xx->dev,
+                                       GFP_KERNEL, tfa98xx, tfa98xx_container_loaded);
+    }
+
     return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG, fw_name, tfa98xx->dev,
                                    GFP_KERNEL, tfa98xx, tfa98xx_container_loaded);
 }

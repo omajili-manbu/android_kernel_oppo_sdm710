@@ -243,6 +243,34 @@ static struct usb_composite_driver gserial_driver = {
 	.unbind		= gs_unbind,
 };
 
+/*
+ * Built-in g_serial claims the UDC at boot so the kernel console on ttyGS0
+ * works before userspace. Legacy composite drivers have no sysfs unbind, so
+ * the UDC stays occupied and configfs gadgets (adb) can never bind. Writing 1
+ * to this parameter unregisters the composite driver and frees the UDC for
+ * userspace; init's configfs retry then binds adb by itself.
+ */
+static int gserial_release;
+static int gserial_release_set(const char *val, const struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret || !gserial_release)
+		return ret;
+
+	gserial_release = 0;
+	usb_composite_unregister(&gserial_driver);
+	pr_info("g_serial: composite driver unregistered, UDC released\n");
+	return 0;
+}
+static const struct kernel_param_ops gserial_release_ops = {
+	.set	= gserial_release_set,
+	.get	= param_get_int,
+};
+module_param_cb(release, &gserial_release_ops, &gserial_release, 0644);
+MODULE_PARM_DESC(release, "write 1 to unregister and release the UDC");
+
 static int __init init(void)
 {
 	/* We *could* export two configs; that'd be much cleaner...

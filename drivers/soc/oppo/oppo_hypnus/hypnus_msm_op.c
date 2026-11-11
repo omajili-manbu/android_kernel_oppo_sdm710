@@ -16,6 +16,7 @@
 #include <linux/version.h>
 #include <linux/mutex.h>
 #include <linux/cpufreq.h>
+#include <linux/sched/sysctl.h>
 #include "kgsl.h"
 #include "kgsl_device.h"
 #include "kgsl_pwrctrl.h"
@@ -271,19 +272,14 @@ static int msm_set_thermal_policy(bool use_default)
 static int msm_get_updown_migrate(unsigned int *up_migrate,
 				  unsigned int *down_migrate)
 {
-	/*
-	 * CAF updown-migrate tuning is not present in this tree;
-	 * report stock defaults so the userspace policy keeps working.
-	 */
-	*up_migrate = 1;
-	*down_migrate = 1;
+	sched_get_updown_migrate(up_migrate, down_migrate);
 	return 0;
 }
 
 static int msm_set_updown_migrate(unsigned int up_migrate,
 				  unsigned int down_migrate)
 {
-	return 0;
+	return sched_set_updown_migrate(up_migrate, down_migrate);
 }
 
 static int msm_set_cpunr_limit(struct hypnus_data *pdata, unsigned int index,

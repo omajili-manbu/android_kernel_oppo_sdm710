@@ -24,6 +24,8 @@ extern unsigned int sysctl_sched_sync_hint_enable;
 extern unsigned int sysctl_sched_cstate_aware;
 extern unsigned int sysctl_sched_capacity_margin;
 extern unsigned int sysctl_sched_capacity_margin_down;
+extern int sched_set_updown_migrate(unsigned int up_pct, unsigned int down_pct);
+extern void sched_get_updown_migrate(unsigned int *up_pct, unsigned int *down_pct);
 
 #ifdef CONFIG_SCHED_WALT
 extern unsigned int sysctl_sched_init_task_load_pct;

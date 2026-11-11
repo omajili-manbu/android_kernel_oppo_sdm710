@@ -5053,8 +5053,10 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 		}
 		perf_enabled = true;
 	}
+	/* facereg: 本机 TZ 对其 whitelist send_data 回 -EINVAL, 强制 legacy 命令 */
 	if (!strcmp(data->client.app_name, "securemm") ||
-	    !strcmp(data->client.app_name, "bgapp")) {
+	    !strcmp(data->client.app_name, "bgapp") ||
+	    !strcmp(data->client.app_name, "facereg")) {
 		data->use_legacy_cmd = true;
 	}
 

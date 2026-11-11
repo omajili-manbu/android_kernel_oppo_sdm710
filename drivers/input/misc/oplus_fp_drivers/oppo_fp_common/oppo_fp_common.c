@@ -142,8 +142,19 @@ static int fp_gpio_parse_parent_dts(struct fp_data *fp_data)
 
     ret = of_property_read_u32(np, FP_GPIO_NUM_NODE, &(fp_data->fp_id_amount));
     if (ret) {
-        dev_err(fp_data->dev, "the param %s is not found !\n", FP_GPIO_NUM_NODE);
-        ret = -FP_ERROR_GENERAL;
+        /* stock DTBO 兼容: oppo,fp_gpio 单 u32 gpio 号, 电平即 fp-id */
+        u32 legacy_gpio = 0;
+        if (of_property_read_u32_index(np, "oppo,fp_gpio", 0, &legacy_gpio)) {
+            dev_err(fp_data->dev, "the param %s is not found !\n", FP_GPIO_NUM_NODE);
+            ret = -FP_ERROR_GENERAL;
+            goto exit;
+        }
+        fp_data->fp_id_amount = 1;
+        fp_data->gpio_index[0] = legacy_gpio;
+        fp_data->fp_id[0] = gpio_get_value(legacy_gpio);
+        dev_info(fp_data->dev, "legacy oppo,fp_gpio: gpio=%u fp_id=%d\n",
+            legacy_gpio, fp_data->fp_id[0]);
+        ret = FP_OK;
         goto exit;
     }
 
@@ -267,7 +278,12 @@ static int fp_gpio_parse_child_dts(struct fp_data *fp_data)
     struct device_node *child = NULL, *np = dev->of_node;
 
     for_each_available_child_of_node(np, child) {
-        child_amount = of_property_count_elems_of_size(child, FP_ID_VALUE_NODE, sizeof(u32));
+        /* stock DTBO 兼容: 子节点 id 属性旧拼写 oppo,fp-id */
+        const char *fp_id_node = FP_ID_VALUE_NODE;
+        if (of_property_count_elems_of_size(child, FP_ID_VALUE_NODE, sizeof(u32)) < 0 &&
+            of_property_count_elems_of_size(child, "oppo,fp-id", sizeof(u32)) >= 0)
+            fp_id_node = "oppo,fp-id";
+        child_amount = of_property_count_elems_of_size(child, fp_id_node, sizeof(u32));
         if (child_amount != fp_data->fp_id_amount) {
             ret = -FP_ERROR_GENERAL;
             dev_err(fp_data->dev, "amount not equal ! \n");
@@ -279,7 +295,7 @@ static int fp_gpio_parse_child_dts(struct fp_data *fp_data)
         }
 
         for (child_node_index = 0; child_node_index < child_amount; child_node_index++) {
-            ret = of_property_read_u32_index(child, FP_ID_VALUE_NODE, child_node_index, &(child_fp_id[child_node_index]));
+            ret = of_property_read_u32_index(child, fp_id_node, child_node_index, &(child_fp_id[child_node_index]));
             if (ret) {
                 dev_err(fp_data->dev, "the param %s is not found !\n", FP_ID_VALUE_NODE);
                 ret = -FP_ERROR_GENERAL;
@@ -500,6 +516,7 @@ static int oppo_fp_common_remove(struct platform_device *pdev)
 
 static struct of_device_id oppo_fp_common_match_table[] = {
     {   .compatible = "oplus,fp_common", },
+	{   .compatible = "oppo,fp_common", },  /* 本机 stock DTBO 旧拼写 */
     {}
 };
 

@@ -1,0 +1,2 @@
+# OPPO vendor drivers (ported from oppo-source/R17Pro-9.0-kernel-source)
+source "drivers/soc/oppo/oppo_hypnus/Kconfig"

@@ -4694,10 +4694,6 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 {
 	struct sde_plane *psde = plane ? to_sde_plane(plane) : NULL;
 	struct sde_plane_state *pstate;
-	#ifdef CONFIG_MACH_OPLUS_SDM710
-	struct drm_property *fod_property;
-	int fod_val = 0;
-	#endif /* CONFIG_MACH_OPLUS_SDM710 */
 	int idx, ret = -EINVAL;
 
 	SDE_DEBUG_PLANE(psde, "\n");
@@ -4708,31 +4704,19 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 		SDE_ERROR_PLANE(psde, "invalid state\n");
 	} else {
 		pstate = to_sde_plane_state(state);
-		#ifdef CONFIG_MACH_OPLUS_SDM710
-		idx = msm_property_index(&psde->property_info,
-				property);
-		if (idx == PLANE_PROP_ZPOS) {
-			if (val & FOD_PRESSED_LAYER_ZORDER) {
-				val &= ~FOD_PRESSED_LAYER_ZORDER;
-				fod_val = 2; // pressed
-			}
-
-			fod_property = psde->property_info.
-					property_array[PLANE_PROP_CUSTOM];
-			ret = msm_property_atomic_set(&psde->property_info,
-					&pstate->property_state,
-					fod_property, fod_val);
-			if (ret)
-				SDE_ERROR("failed to set fod prop");
-		}
-		#endif /* CONFIG_MACH_OPLUS_SDM710 */
+		/*
+		 * PLANE_CUST (PLANE_PROP_CUSTOM) is written directly by the
+		 * ColorOS HWC via libsdedrm to tag FOD icon/pressed/AOD layers,
+		 * exactly like OPPO stock. Do not derive it from zpos here: a
+		 * per-zpos overwrite clobbers the HWC-set value on every frame
+		 * and fingerprint_pressed never fires, starving the optical FOD
+		 * capture handshake (silead TA err 1018).
+		 */
 		ret = msm_property_atomic_set(&psde->property_info,
 				&pstate->property_state, property, val);
 		if (!ret) {
-			#ifndef CONFIG_MACH_OPLUS_SDM710
 			idx = msm_property_index(&psde->property_info,
 					property);
-			#endif /* CONFIG_MACH_OPLUS_SDM710 */
 			switch (idx) {
 			case PLANE_PROP_INPUT_FENCE:
 				_sde_plane_set_input_fence(psde, pstate, val);

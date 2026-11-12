@@ -1053,6 +1053,61 @@ static struct tty_driver *gs_tty_driver;
 static struct gscons_info gscons_info;
 static struct console gserial_cons;
 
+/*
+ * Early-boot console gate: kernel_init blocks until the ttyGS0 console
+ * data path is attached (gserial_connect -> gs_console_connect), then
+ * waits a grace window so the host-side reader can come up before
+ * userspace starts. Timeout is controlled by the "usbwait" boot param
+ * (seconds, -1 = disabled).
+ */
+static int gserial_boot_wait_timeout = -1;
+static int gserial_console_ready(void)
+{
+	return gscons_info.port && gscons_info.port->port_usb
+	       && gscons_info.console_req;
+}
+static void gserial_console_wait_ready(long timeout_s)
+{
+	long waited = 0;
+
+	if (timeout_s < 0)
+		return;
+	while (!gserial_console_ready() && waited < timeout_s) {
+		__set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(HZ);
+		waited++;
+	}
+	pr_info("g_serial: console gate %s after %lds (timeout %lds)\n",
+		gserial_console_ready() ? "passed" : "TIMED OUT",
+		waited, timeout_s);
+}
+/**
+ * gserial_console_boot_wait - boot-time gate for the ttyGS0 console
+ * Returns nothing; blocking duration is driven by usbwait=<s> on the
+ * command line (default -1 = don't block), plus a fixed 5s grace window
+ * after readiness. Safe no-op when the console is compiled out or the
+ * gadget is absent.
+ */
+int gserial_console_boot_wait(void)
+{
+	gserial_console_wait_ready(gserial_boot_wait_timeout);
+	if (gserial_boot_wait_timeout >= 0)
+		msleep(5000);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(gserial_console_boot_wait);
+
+static int gserial_usbwait_set(const char *val,
+			       const struct kernel_param *kp)
+{
+	return param_set_int(val, kp);
+}
+static const struct kernel_param_ops gserial_usbwait_ops = {
+	.set = gserial_usbwait_set,
+	.get = param_get_int,
+};
+core_param(usbwait, gserial_boot_wait_timeout, int, 0644);
+
 static struct usb_request *gs_request_new(struct usb_ep *ep)
 {
 	struct usb_request *req = usb_ep_alloc_request(ep, GFP_ATOMIC);
@@ -1285,6 +1340,16 @@ static void gserial_console_init(void)
 static void gserial_console_exit(void)
 {
 }
+
+/*
+ * Compiled-out console: boot gate is a no-op so init/main.c can call it
+ * unconditionally under IS_BUILTIN(CONFIG_USB_G_SERIAL).
+ */
+int gserial_console_boot_wait(void)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(gserial_console_boot_wait);
 
 #endif
 

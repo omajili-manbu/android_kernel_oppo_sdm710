@@ -907,6 +907,10 @@ void __init load_default_modules(void)
 	load_default_elevator_module();
 }
 
+#if IS_BUILTIN(CONFIG_USB_G_SERIAL)
+extern int gserial_console_boot_wait(void);
+#endif
+
 static int run_init_process(const char *init_filename)
 {
 	argv_init[0] = init_filename;
@@ -1037,6 +1041,16 @@ static noinline void __init kernel_init_freeable(void)
 	page_alloc_init_late();
 
 	do_basic_setup();
+
+	/*
+	 * PBEM00 debug gate: block kernel_init until the ttyGS0 serial
+	 * console data path is up (usbwait=<seconds>, -1 disables), then
+	 * hold a grace window before handing off to userspace. This keeps
+	 * the early boot log readable on the host even when init panics
+	 * within seconds.
+	 */
+	if (IS_BUILTIN(CONFIG_USB_G_SERIAL))
+		gserial_console_boot_wait();
 
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)

@@ -31,6 +31,10 @@
 #include <trace/events/exception.h>
 #include <soc/qcom/minidump.h>
 
+/* Flush the ttyGS0 console ring to the host before the panic path
+ * stops the machine (drivers/usb/gadget/function/u_serial.c). */
+extern void gserial_console_panic_drain(void);
+
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
@@ -288,6 +292,7 @@ void panic(const char *fmt, ...)
 		 * shutting down.  But if there is a chance of
 		 * rebooting the system it will be rebooted.
 		 */
+		gserial_console_panic_drain();
 		emergency_restart();
 	}
 #ifdef __sparc__
@@ -307,6 +312,7 @@ void panic(const char *fmt, ...)
 	}
 #endif
 	pr_emerg("---[ end Kernel panic - not syncing: %s\n", buf);
+	gserial_console_panic_drain();
 	local_irq_enable();
 	for (i = 0; ; i += PANIC_TIMER_STEP) {
 		touch_softlockup_watchdog();

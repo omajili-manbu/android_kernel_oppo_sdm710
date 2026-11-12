@@ -1288,6 +1288,74 @@ static void gs_console_write(struct console *co,
 	wake_up_process(info->console_thread);
 }
 
+/*
+ * gserial_console_panic_drain - flush the console ring over USB without
+ * the gs_console kthread. To be called from panic() after
+ * smp_send_stop(): the pump thread can no longer be scheduled, so
+ * whatever is left in con_buf would otherwise die with the reboot.
+ *
+ * The whole backlog goes out as ONE chained-TRB request: dwc3 walks
+ * its TRB chain in hardware, so no IRQ or completion processing is
+ * needed to move the data. con_lock is deliberately not taken: after
+ * smp_send_stop() the pump thread is frozen and the only remaining
+ * ring writer (console write) runs on this very CPU, so the ring is
+ * effectively single-threaded here.
+ */
+void gserial_console_panic_drain(void)
+{
+	struct gscons_info *info = &gscons_info;
+	struct gs_port *port;
+	struct usb_ep *ep;
+	struct usb_request *req;
+	unsigned count;
+
+	port = info->port;
+	if (!port || !port->port_usb || !port->port_usb->in
+	    || !info->console_req)
+		return;
+	ep = port->port_usb->in;
+
+	count = gs_buf_data_avail(&info->con_buf);
+	if (!count)
+		return;
+	if (count > GS_CONSOLE_BUF_SIZE)
+		count = GS_CONSOLE_BUF_SIZE;
+
+	req = usb_ep_alloc_request(ep, GFP_ATOMIC);
+	if (req)
+		req->buf = kmalloc(count, GFP_ATOMIC);
+	if (!req || !req->buf) {
+		/*
+		 * Allocation failed: fall back to one maxpacket chunk
+		 * through the pump request, so at least the tail of
+		 * the dump (Call trace, the frames) gets out.
+		 */
+		if (req) {
+			kfree(req->buf);
+			usb_ep_free_request(ep, req);
+		}
+		if (info->req_busy)
+			return;
+		if (count > ep->maxpacket)
+			count = ep->maxpacket;
+		req = info->console_req;
+		gs_buf_get(&info->con_buf, req->buf, count);
+		req->length = count;
+		req->zero = 0;
+		usb_ep_queue(ep, req, GFP_ATOMIC);
+		return;
+	}
+
+	count = gs_buf_get(&info->con_buf, req->buf, count);
+	req->length = count;
+	req->zero = 1;
+	req->complete = gs_complete_out;
+	usb_ep_queue(ep, req, GFP_ATOMIC);
+	/* let the TRB chain get onto the wire before we vanish */
+	mdelay(10);
+}
+EXPORT_SYMBOL_GPL(gserial_console_panic_drain);
+
 static struct tty_driver *gs_console_device(struct console *co, int *index)
 {
 	struct tty_driver **p = (struct tty_driver **)co->data;
@@ -1351,6 +1419,14 @@ int gserial_console_boot_wait(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(gserial_console_boot_wait);
+
+/*
+ * Compiled-out console: panic drain is a no-op for the same reason.
+ */
+void gserial_console_panic_drain(void)
+{
+}
+EXPORT_SYMBOL_GPL(gserial_console_panic_drain);
 
 #endif
 

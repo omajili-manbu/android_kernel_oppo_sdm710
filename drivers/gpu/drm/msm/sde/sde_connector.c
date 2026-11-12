@@ -21,6 +21,7 @@
 #include <linux/string.h>
 #include "dsi_drm.h"
 #include "dsi_display.h"
+#include "dsi_ctrl.h"
 #include "sde_crtc.h"
 #include "sde_rm.h"
 
@@ -680,6 +681,17 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 		if (fingerprint_mode) {
 			mutex_lock(&dsi_display->panel->panel_lock);
 
+			/*
+			 * OPPO upstream assumes these panel writes run inside a commit
+			 * with DSI core clocks active. That context is not guaranteed
+			 * on this baseline, so vote the clock explicitly like
+			 * dsi_display_hbm_on() does; without it the HBM_ON DCS never
+			 * reaches the panel and FOD capture gets black images.
+			 */
+			if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE)
+				dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
+						DSI_CORE_CLK, DSI_CLK_ON);
+
 			if (oppo_seed_backlight) {
 				int frame_time_us;
 				frame_time_us = mult_frac(1000, 1000, panel->cur_mode->timing.refresh_rate);
@@ -697,6 +709,10 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_ON);
 			}
 
+			if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE)
+				dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
+						DSI_CORE_CLK, DSI_CLK_OFF);
+
 			mutex_unlock(&dsi_display->panel->panel_lock);
 			if (rc) {
 				pr_err("failed to send DSI_CMD_HBM_ON cmds, rc=%d\n", rc);
@@ -713,6 +729,10 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 			}
 
 			sde_encoder_poll_line_counts(drm_enc);
+
+			if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE)
+				dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
+						DSI_CORE_CLK, DSI_CLK_ON);
 
 			oppo_skip_datadimming_sync = true;
 			oppo_panel_update_backlight_unlock(panel);
@@ -737,6 +757,10 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 			} else {
 				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_OFF);
 			}
+
+			if (dsi_display->config.panel_mode == DSI_OP_CMD_MODE)
+				dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
+						DSI_CORE_CLK, DSI_CLK_OFF);
 
 			mutex_unlock(&dsi_display->panel->panel_lock);
 			if (rc) {

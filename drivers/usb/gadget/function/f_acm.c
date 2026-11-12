@@ -797,7 +797,7 @@ static void acm_free_instance(struct usb_function_instance *fi)
 	struct f_serial_opts *opts;
 
 	opts = container_of(fi, struct f_serial_opts, func_inst);
-	gserial_free_line(opts->port_num);
+	gserial_free_line_tagged(opts->port_num, fi);
 	kfree(opts);
 }
 
@@ -810,7 +810,7 @@ static struct usb_function_instance *acm_alloc_instance(void)
 	if (!opts)
 		return ERR_PTR(-ENOMEM);
 	opts->func_inst.free_func_inst = acm_free_instance;
-	ret = gserial_alloc_line(&opts->port_num);
+	ret = gserial_alloc_line_tagged(&opts->port_num, &opts->func_inst);
 	if (ret) {
 		kfree(opts);
 		return ERR_PTR(ret);

@@ -71,6 +71,13 @@ void gs_free_req(struct usb_ep *, struct usb_request *req);
 
 /* management of individual TTY ports */
 int gserial_alloc_line(unsigned char *port_line);
+/* Owner-tagged variants: the portmaster[] slot records @owner at alloc time;
+ * gserial_free_line_tagged() frees the line only when the cookie matches.
+ * Guards a live ttyGS0 (tty device + console + kthread) against cross-driver
+ * teardown, e.g. configfs acm instances unbinding while built-in legacy
+ * g_serial still owns the line. */
+int gserial_alloc_line_tagged(unsigned char *line_num, void *owner);
+void gserial_free_line_tagged(unsigned char port_num, void *owner);
 void gserial_free_line(unsigned char port_line);
 
 /* connect/disconnect is handled by individual functions */

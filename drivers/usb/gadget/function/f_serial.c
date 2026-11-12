@@ -733,7 +733,7 @@ static void gser_free_inst(struct usb_function_instance *f)
 	struct f_serial_opts *opts;
 
 	opts = container_of(f, struct f_serial_opts, func_inst);
-	gserial_free_line(opts->port_num);
+	gserial_free_line_tagged(opts->port_num, f);
 	kfree(opts);
 }
 
@@ -747,7 +747,7 @@ static struct usb_function_instance *gser_alloc_inst(void)
 		return ERR_PTR(-ENOMEM);
 
 	opts->func_inst.free_func_inst = gser_free_inst;
-	ret = gserial_alloc_line(&opts->port_num);
+	ret = gserial_alloc_line_tagged(&opts->port_num, &opts->func_inst);
 	if (ret) {
 		kfree(opts);
 		return ERR_PTR(ret);

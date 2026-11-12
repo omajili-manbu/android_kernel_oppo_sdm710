@@ -124,10 +124,26 @@ static int serial_register_ports(struct usb_composite_dev *cdev,
 
 	for (i = 0; i < n_ports; i++) {
 
-		fi_serial[i] = usb_get_function_instance(f_name);
-		if (IS_ERR(fi_serial[i])) {
-			ret = PTR_ERR(fi_serial[i]);
-			goto fail;
+		/*
+		 * Keep the function instance (and the ttyGS line behind it,
+		 * console included) across bind/unbind cycles: UDC loss makes
+		 * the composite core unbind us, and freeing the instance here
+		 * used to destroy ttyGS0 wholesale -- tty device, registered
+		 * console, console kthread -- leaving the port dead even
+		 * after re-enumeration. Allocating once and reusing below
+		 * keeps the line alive for the driver's lifetime; configfs
+		 * acm instances get their own lines (this one stays busy),
+		 * so their teardown can never touch ours.
+		 */
+		if (!fi_serial[i]) {
+			struct usb_function_instance *fi;
+
+			fi = usb_get_function_instance(f_name);
+			if (IS_ERR(fi)) {
+				ret = PTR_ERR(fi);
+				goto fail;
+			}
+			fi_serial[i] = fi;
 		}
 
 		f_serial[i] = usb_get_function(fi_serial[i]);
@@ -224,8 +240,12 @@ static int gs_unbind(struct usb_composite_dev *cdev)
 	int i;
 
 	for (i = 0; i < n_ports; i++) {
+		/*
+		 * Put only the function, keep the instance (and the ttyGS
+		 * line + console behind it) for the next bind. See the
+		 * comment in serial_register_ports().
+		 */
 		usb_put_function(f_serial[i]);
-		usb_put_function_instance(fi_serial[i]);
 	}
 
 	kfree(otg_desc[0]);

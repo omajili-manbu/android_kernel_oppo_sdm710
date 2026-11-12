@@ -137,6 +137,7 @@ struct gs_port {
 static struct portmaster {
 	struct mutex	lock;			/* protect open/close */
 	struct gs_port	*port;
+	void		*owner;			/* alloc tag; NULL = untagged */
 } ports[MAX_U_SERIAL_PORTS];
 
 #define GS_CLOSE_TIMEOUT		15		/* seconds */
@@ -1426,6 +1427,7 @@ void gserial_free_line(unsigned char port_num)
 	}
 	port = ports[port_num].port;
 	ports[port_num].port = NULL;
+	ports[port_num].owner = NULL;
 	mutex_unlock(&ports[port_num].lock);
 
 	gserial_free_port(port);
@@ -1434,7 +1436,7 @@ void gserial_free_line(unsigned char port_num)
 }
 EXPORT_SYMBOL_GPL(gserial_free_line);
 
-int gserial_alloc_line(unsigned char *line_num)
+static int gserial_alloc_line_tagged_internal(unsigned char *line_num, void *owner)
 {
 	struct usb_cdc_line_coding	coding;
 	struct device			*tty_dev;
@@ -1475,9 +1477,55 @@ int gserial_alloc_line(unsigned char *line_num)
 		goto err;
 	}
 	*line_num = port_num;
+	mutex_lock(&ports[port_num].lock);
+	ports[port_num].owner = owner;
+	mutex_unlock(&ports[port_num].lock);
 	gserial_console_init();
 err:
 	return ret;
+}
+
+/**
+ * gserial_alloc_line_tagged - allocate a serial line owned by @owner
+ * The line can only be freed again via gserial_free_line_tagged() with the
+ * same cookie; untagged gserial_free_line() frees regardless (legacy API
+ * kept for in-tree users that own their line unconditionally).
+ */
+int gserial_alloc_line_tagged(unsigned char *line_num, void *owner)
+{
+	return gserial_alloc_line_tagged_internal(line_num, owner);
+}
+EXPORT_SYMBOL_GPL(gserial_alloc_line_tagged);
+
+/**
+ * gserial_free_line_tagged - free a line only if @owner matches its tag
+ * A mismatch means the slot belongs to another driver (or is gone); freeing
+ * it anyway would destroy a live tty device, console and kernel thread out
+ * from under their owner. Refuse and log instead.
+ */
+void gserial_free_line_tagged(unsigned char port_num, void *owner)
+{
+	if (port_num >= MAX_U_SERIAL_PORTS)
+		return;
+	mutex_lock(&ports[port_num].lock);
+	if (!ports[port_num].port) {
+		mutex_unlock(&ports[port_num].lock);
+		return;
+	}
+	if (ports[port_num].owner != owner) {
+		mutex_unlock(&ports[port_num].lock);
+		pr_info("gserial: line %u free refused (owner mismatch)\n",
+			port_num);
+		return;
+	}
+	mutex_unlock(&ports[port_num].lock);
+	gserial_free_line(port_num);
+}
+EXPORT_SYMBOL_GPL(gserial_free_line_tagged);
+
+int gserial_alloc_line(unsigned char *line_num)
+{
+	return gserial_alloc_line_tagged_internal(line_num, NULL);
 }
 EXPORT_SYMBOL_GPL(gserial_alloc_line);
 

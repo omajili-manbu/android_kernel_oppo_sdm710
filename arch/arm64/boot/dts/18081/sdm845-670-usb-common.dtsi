@@ -32,12 +32,11 @@
 				"ss_phy_irq", "dm_hs_phy_irq";
 
 		USB3_GDSC-supply = <&usb30_prim_gdsc>;
-		qcom,usb-dbm = <&dbm_1p5>;
 		qcom,dwc-usb3-msm-tx-fifo-size = <21288>;
 		qcom,num-gsi-evt-buffs = <0x3>;
 		qcom,use-pdc-interrupts;
 		qcom,pm-qos-latency = <44>;
-		extcon = <0>, <0>, <&eud>, <0>, <0>;
+		extcon = <0>, <0>, <0>, <0>, <0>;
 
 		clocks = <&clock_gcc GCC_USB30_PRIM_MASTER_CLK>,
 			 <&clock_gcc GCC_CFG_NOC_USB3_PRIM_AXI_CLK>,

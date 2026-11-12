@@ -10,6 +10,7 @@
  */
 #include <linux/debug_locks.h>
 #include <linux/interrupt.h>
+#include <asm/irq_regs.h>
 #include <linux/kmsg_dump.h>
 #include <linux/kallsyms.h>
 #include <linux/notifier.h>
@@ -183,8 +184,15 @@ void panic(const char *fmt, ...)
 	/*
 	 * Avoid nested stack-dumping if a panic occurs during oops processing
 	 */
-	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
+	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1) {
+		struct pt_regs *regs = get_irq_regs();
+
+		if (regs)
+			show_regs(regs);
+		else
+			pr_emerg("Panic in process context, no exception pt_regs\n");
 		dump_stack();
+	}
 #endif
 
 	/*
